@@ -1,0 +1,189 @@
+<?php
+
+namespace App\Http\Controllers\SuperAdmin;
+
+use Carbon\Carbon;
+use Stripe\Webhook;
+use App\Models\User;
+use App\Models\Package;
+use Stripe\StripeClient;
+use App\Models\Restaurant;
+use Illuminate\Http\Request;
+use App\Models\GlobalInvoice;
+use App\Models\GlobalSubscription;
+use Illuminate\Routing\Controller;
+use App\Models\SuperadminPaymentGateway;
+use App\Notifications\RestaurantUpdatedPlan;
+use Illuminate\Support\Facades\Notification;
+use Stripe\Exception\SignatureVerificationException;
+
+class StripeWebhookController extends Controller
+{
+
+
+    public function verifyStripeWebhook(Request $request, $hash)
+    {
+        $settings = SuperadminPaymentGateway::first();
+
+        $stripeCredentials = $settings->stripe_webhook_key;
+
+
+        if (is_null($stripeCredentials)) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Webhook secret is not entered',
+            ], 400);
+        }
+
+        $stripe = new StripeClient($stripeCredentials);
+        $endpoint_secret = $stripeCredentials;
+
+        $payload = @file_get_contents('php://input');
+        $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'];
+
+        try {
+            Webhook::constructEvent(
+                $payload,
+                $sig_header,
+                $endpoint_secret
+            );
+
+        } catch (\UnexpectedValueException $e) {
+            // Invalid payload
+            return response('Invalid Payload' . $e->getMessage(), 400);
+
+        } catch (SignatureVerificationException $e) {
+            // Invalid signature
+            return response('Invalid signature' . $e->getMessage(), 400);
+
+        }
+
+        $payload = json_decode($request->getContent(), true);
+
+        if (!isset($payload['data']['object']['object'])) {
+            return response('Payload data not found', 200);
+        }
+
+        $customerId = $payload['data']['object']['customer'];
+
+        $restaurant = Restaurant::where('stripe_id', $customerId)->first();
+
+        if (!$restaurant) {
+            return response('Customer not found', 200);
+        }
+
+        // Do something with $event
+        if ($payload['data']['object']['object'] == 'invoice') {
+
+            if ($payload['type'] == 'invoice.payment_succeeded') {
+
+                $planId = $payload['data']['object']['lines']['data'][0]['plan']['id'];
+                $invoice_number = $payload['data']['object']['number'];
+                $amount = $payload['data']['object']['amount_paid'];
+                $transactionId = $payload['data']['object']['payment_intent'];
+                $invoiceRealId = $payload['data']['object']['id'];
+                $package = Package::where(function ($query) use ($planId) {
+                    $query->where('stripe_annual_plan_id', '=', $planId)
+                    ->orWhere('stripe_monthly_plan_id', '=', $planId);
+                })->first();
+
+                $paidAt = $payload['data']['object']['status_transitions']['paid_at'] ? Carbon::createFromTimestamp($payload['data']['object']['status_transitions']['paid_at'])->format('Y-m-d H:i:s') : null;
+                $globalSubscription = GlobalSubscription::where('gateway_name', 'stripe')->where('restaurant_id', $restaurant->id)->latest()->first();
+                $stripInvoiceData = GlobalInvoice::where('gateway_name', 'stripe')->where('restaurant_id', $restaurant->id)->where('transaction_id', $transactionId)->first();
+
+                $nextPayDate = $globalSubscription->package_type == 'monthly'
+                    ? Carbon::parse($paidAt)->addMonth()->format('Y-m-d H:i:s')
+                    : Carbon::parse($paidAt)->addYear()->format('Y-m-d H:i:s');
+
+                if (is_null($stripInvoiceData)) {
+                    // Store invoice details
+                    $stripeInvoice = new GlobalInvoice();
+                    $stripeInvoice->global_subscription_id = $globalSubscription->id;
+                    $stripeInvoice->restaurant_id = $restaurant->id;
+                    $stripeInvoice->invoice_id = $invoiceRealId;
+                    $stripeInvoice->transaction_id = $transactionId;
+                    $stripeInvoice->amount = $amount / 100;
+                    $stripeInvoice->total = $amount / 100;
+                    $stripeInvoice->currency_id = $package->currency_id;
+                    $stripeInvoice->package_type = $globalSubscription->package_type;
+                    $stripeInvoice->package_id = $package->id;
+                    $stripeInvoice->pay_date = $paidAt;
+                    $stripeInvoice->next_pay_date = $nextPayDate ?? null;
+                    $stripeInvoice->stripe_invoice_number = $invoice_number;
+                    $stripeInvoice->gateway_name = 'stripe';
+                    $stripeInvoice->save();
+
+                    // Change restaurant status active after payment
+                    $restaurant->package_id = $package->id;
+                    $restaurant->package_type = $globalSubscription->package_type;
+
+                    // Set restaurant status active
+                    $restaurant->license_expire_on = null;
+                    $restaurant->status = 'active';
+                    $restaurant->save();
+                    $generatedBy = User::whereNull('restaurant_id')->get();
+                    Notification::send($generatedBy, new RestaurantUpdatedPlan($restaurant, $package->id));
+
+                }
+
+                return response('Webhook Handled', 200);
+            }
+
+            if ($payload['type'] == 'invoice.payment_failed') {
+
+                $globalSubscription = GlobalSubscription::where('gateway_name', 'stripe')->where('restaurant_id', $restaurant->id)->first();
+
+                if (isset($payload['data']['object']['current_period_end'])) {
+                    $globalSubscription->ends_at = Carbon::createFromTimeStamp($payload['data']['object']['current_period_end'])->format('Y-m-d');
+                    $globalSubscription->save();
+                }
+
+                if (isset($payload['data']['object']['current_period_end'])) {
+                    $restaurant->license_expire_on = Carbon::createFromTimeStamp($payload['data']['object']['current_period_end'])->format('Y-m-d');
+                    $restaurant->save();
+
+                    return response('Restaurant subscription canceled', 200);
+                }
+
+                return response('Customer not found', 200);
+            }
+        }
+
+        // If webhook with payment_intent (Success or Failed)
+        if ($payload['data']['object']['object'] == 'payment_intent') {
+
+            $globalSubscription = GlobalSubscription::where('gateway_name', 'stripe')->where('restaurant_id', $restaurant->id)->first();
+
+            if ($payload['type'] == 'payment_intent.succeeded') {
+
+                if ($globalSubscription) {
+                    $globalSubscription->stripe_status = 'active';
+                    $globalSubscription->save();
+                }
+                return response('Webhook Handled', 200);
+            }
+
+            if ($payload['type'] == 'payment_intent.payment_failed') {
+
+
+                if (isset($payload['data']['object']['current_period_end'])) {
+                    $globalSubscription->ends_at = Carbon::createFromTimeStamp($payload['data']['object']['current_period_end'])->format('Y-m-d');
+                }
+
+                $globalSubscription->save();
+
+
+                if (isset($payload['data']['object']['current_period_end'])) {
+                    $restaurant->license_expire_on = Carbon::createFromTimeStamp($payload['data']['object']['current_period_end'])->format('Y-m-d');
+                    $restaurant->save();
+                }
+
+                return response('intent failed', 400);
+
+            }
+
+        }
+
+    }
+
+}
