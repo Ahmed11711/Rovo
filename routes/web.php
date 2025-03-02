@@ -2,6 +2,7 @@
 
 use App\Exports\PaymentExport;
 use App\Http\Middleware\SuperAdmin;
+use App\Livewire\Bundle\BundleList;
 use Illuminate\Support\Facades\File;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RestaurantController;
 use App\Http\Controllers\LandingSiteController;
 use App\Http\Controllers\ReservationController;
+use Symfony\Component\HttpKernel\Bundle\Bundle;
 use App\Http\Controllers\CustomModuleController;
 use App\Http\Controllers\ItemCategoryController;
 use App\Http\Controllers\ItemModifierController;
@@ -34,9 +36,9 @@ use App\Http\Controllers\WaiterRequestController;
 use App\Http\Controllers\OnboardingStepController;
 use App\Http\Controllers\DeliveryExecutiveController;
 use App\Http\Controllers\RestaurantPaymentController;
+ use App\Http\Controllers\NewPackage\newPackageController;
 use App\Http\Controllers\RestaurantSettingController;
 use App\Http\Controllers\SuperadminSettingController;
-use App\Http\Controllers\NewPakage\newPakageController;
 use App\Http\Controllers\SuperAdmin\StripeWebhookController;
 use App\Http\Controllers\SuperAdmin\RazorpayWebhookController;
 
@@ -187,3 +189,5 @@ Route::post('/webhook/save-razorpay-webhook/{hash?}', [RazorpayWebhookController
 Route::view('offline', 'off');
 
 
+Route::get('bundle',[newPackageController::class,'index'])->name('bundle');
+// Route::get('/bundle', BundleList::class)->name('bundle');

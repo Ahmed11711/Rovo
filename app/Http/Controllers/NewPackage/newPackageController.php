@@ -9,12 +9,7 @@ class newPackageController extends Controller
 {
     public function index()
     {
+       return view('bundle.index');
 
-       [
-        {
-            'cate_id'=>1,
-            'count'=>2,
-        }
-       ]
     }
 }

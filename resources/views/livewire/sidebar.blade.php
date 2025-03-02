@@ -150,6 +150,12 @@
                         @endif
 
 
+                        @livewire('sidebar-menu-item', [
+                            'name' => __('bundle'),
+                            'icon' => 'fa-box',
+                            'link' => route('bundle'),
+                            'active' => request()->routeIs('bundle')
+                        ])
                     </ul>
 
                 </div>
