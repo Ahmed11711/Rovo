@@ -1,11 +1,9 @@
 <div x-data="{ showModal: @entangle('showAddBundleModal') }">
-    <!-- زر فتح المودال -->
     <div class="p-4 bg-white flex items-center justify-between dark:bg-gray-800 dark:border-gray-700">
         <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl dark:text-white">@lang('All Bundles')</h1>
         <x-button type='button' wire:click="$set('showAddBundleModal', true)">@lang('Create Bundle')</x-button>
     </div>
 
-    <!-- جدول عرض الباندلز -->
     <div class="flex flex-col mt-4">
         <div class="overflow-x-auto">
             <div class="inline-block min-w-full align-middle">
@@ -13,12 +11,12 @@
                     <table class="min-w-full divide-y divide-gray-200 table-fixed dark:divide-gray-600">
                         <thead class="bg-gray-100 dark:bg-gray-700">
                             <tr>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">@lang('Name')</th>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">@lang('Description')</th>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">@lang('Price')</th>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">@lang('Available')</th>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">@lang('Products')</th>
-                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400 text-right">@lang('Actions')</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">Name</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">Description</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">Price</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">Available</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">Products</th>
+                                <th class="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase dark:text-gray-400 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
@@ -50,34 +48,27 @@
         </div>
     </div>
 
-    <!-- مودال إضافة الباندل -->
-    <div x-show="showModal" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
-        <div class="bg-white dark:bg-gray-800 shadow-xl rounded-lg w-2/3 p-6">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">@lang('Create Bundle')</h2>
-
+    <x-right-modal wire:model.live="showAddBundleModal">
+        <x-slot name="title">
+            @lang('Create Bundle')
+        </x-slot>
+        <x-slot name="content">
             <form wire:submit.prevent="submitForm">
                 <div class="space-y-4">
-                    <!-- اسم الباقة -->
                     <div>
-                        <x-label for="name" value="@lang('Name')" class="font-semibold" />
+                        <x-label for="name" value="Name" class="font-semibold" />
                         <x-input id="name" class="block mt-1 w-full" type="text" wire:model='name' placeholder="Enter bundle name..." />
                     </div>
-
-                    <!-- الوصف -->
                     <div>
-                        <x-label for="desc" value="@lang('Description')" class="font-semibold" />
+                        <x-label for="desc" value="Description" class="font-semibold" />
                         <x-textarea id="desc" class="block mt-1 w-full" wire:model='desc' placeholder="Enter bundle description..."></x-textarea>
                     </div>
-
-                    <!-- السعر -->
                     <div>
-                        <x-label for="price" value="@lang('Price')" class="font-semibold" />
+                        <x-label for="price" value="Price" class="font-semibold" />
                         <x-input id="price" class="block mt-1 w-full" type="number" step="0.01" wire:model='price' placeholder="Enter price..." />
                     </div>
-
-                    <!-- المنتجات -->
                     <div>
-                        <x-label for="products" value="@lang('Products')" class="font-semibold" />
+                        <x-label for="products" value="Products" class="font-semibold" />
                         <div class="border rounded-lg p-3 bg-gray-50 dark:bg-gray-700">
                             <table class="w-full text-left border-collapse">
                                 <thead>
@@ -111,13 +102,11 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- أزرار الحفظ والإلغاء -->
                 <div class="flex justify-end space-x-4 mt-6">
-                    <x-button type="submit">@lang('Save')</x-button>
-                    <x-button-cancel type="button" @click="showModal = false" wire:click="$set('showAddBundleModal', false)" wire:loading.attr="disabled">@lang('Cancel')</x-button-cancel>
+                    <x-button type="submit">Save</x-button>
+                    <x-button-cancel type="button" wire:click="$set('showAddBundleModal', false)" wire:loading.attr="disabled">@lang('Cancel')</x-button-cancel>
                 </div>
             </form>
-        </div>
-    </div>
+        </x-slot>
+    </x-right-modal>
 </div>
